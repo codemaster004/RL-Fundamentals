@@ -1,0 +1,10 @@
+# Ignore python virtaul Env
+.venv
+venv
+
+# Ignore IDE files
+.idea
+
+# Ignore private .env files
+*.env
+.env
