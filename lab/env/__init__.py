@@ -1,0 +1,1 @@
+from SimpleTrends import SimpleTrends
