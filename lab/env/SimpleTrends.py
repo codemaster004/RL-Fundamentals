@@ -75,7 +75,7 @@ class SimpleTrends(gym.Env):
 		return self.state, reward, terminated, False, {}
 
 	def render(self):
-		print(f"{self.funds=}, {self.bought_count=}, {self.prices[-1]=}")
+		print(f"{self.funds=}, {self.bought_count=}, {self._prices[-1]=}")
 
 	def close(self):
 		pass
@@ -88,7 +88,7 @@ class SimpleTrends(gym.Env):
 		return None
 	
 	def _calc_reward(self):
-		return self.funds + self.bought_count * self.prices[-1]
+		return self.funds + self.bought_count * self._prices[-1]
 
 	@staticmethod
 	def _gen_returns_t(num_days=5, mu=0.0005, sigma=0.01, df=5):
