@@ -1,3 +1,5 @@
+from os.path import join as pjoin
+
 import numpy as np
 
 
@@ -28,7 +30,8 @@ class MonteCarloAgent:
 		self.state_dim = state_dim
 		self.action_dim = action_dim
 
-		self.q_table = np.zeros((*self.state_dim, self.action_dim))  # todo: this will work only when state_dim is an int
+		self.q_table = np.zeros((*self.state_dim, self.action_dim))
+		self.buffer = MCBuffer()
 
 	def select_action(self, state, mask, epsilon=0.1):
 		allowed_indices = np.where(mask)[0]
@@ -44,31 +47,39 @@ class MonteCarloAgent:
 		for s, a, r in zip(states, actions, rewards):
 			self.q_table[(*s, a)] += alpha * (r - self.q_table[(*s, a)])
 
-	def train(self, env, episodes=10_000, discounting=0.9, learning_rate=0.01, epsilon=0.3):
+	def train(self, env, episodes=10_000, discounting=0.9, learning_rate=0.01, epsilon=0.3, trajectories_per_update=1):
 		print('Starting Monte Carlo Training...')
-		buffer = MCBuffer()
 		for episode in range(episodes):
+			self.buffer.reset()
+			# Collect Experience
+			for _ in range(trajectories_per_update):
+				self._run_episode(env, epsilon)
+
+			states, actions, rewards = self.buffer.get()
+			rewards = self._calc_cumsum_rewards(rewards, discounting)
+			# Update Q-table
+			self.update(states, actions, rewards, learning_rate)
+			# Logging
 			if (episode + 1) % 100 == 0:
 				print("Episode: ", episode + 1)
-			buffer.reset()
-			self._run_episode(env, buffer)
-
-			states, actions, rewards = buffer.get()
-			rewards = self._calc_cumsum_rewards(rewards, discounting)
-			self.update(states, actions, rewards, learning_rate)
-		print(f'{env.funds=}, {env.bought_count}, {env._prices[-1]}')
 	
-	def _run_episode(self, env, buffer):
+	def save(self, path='.', filename='MC-Agent.npy'):
+		np.save(pjoin(path, filename), self.q_table)
+	
+	def load(self, path='.', filename='MC-Agent.npy'):
+		self.q_table = np.load(pjoin(path, filename))
+	
+	def _run_episode(self, env, epsilon):
 		state, info = env.reset()
 		mask = info['action_mask']
 
 		done = False
 		while not done:
-			action = self.select_action(state, mask, epsilon=0.3)
+			action = self.select_action(state, mask, epsilon=epsilon)
 
 			next_state, reward, terminated, truncated, info = env.step(action)
 			mask = info['action_mask']
-			buffer.add(state, action, reward)
+			self.buffer.add(state, action, reward)
 			state = next_state
 
 			done = terminated or truncated
@@ -88,5 +99,6 @@ if __name__ == '__main__':
 
 	env = SimpleTrends()
 	agent = MonteCarloAgent(state_dim=(3, 2), action_dim=3)
-	agent.train(env)
+	agent.train(env, episodes=5000, trajectories_per_update=5)
+	agent.save(path='saves/')
 	print(agent.q_table)
