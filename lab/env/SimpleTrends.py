@@ -1,7 +1,7 @@
 from gymnasium import spaces
 import numpy as np
 
-from .GenerativeEnv import GenerativeEnv
+from lab.env.GenerativeEnv import GenerativeEnv
 
 
 class SimpleTrends(GenerativeEnv):
