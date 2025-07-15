@@ -97,7 +97,7 @@ class MonteCarloAgent:
 if __name__ == '__main__':
 	from lab.env.SimpleTrends import SimpleTrends
 
-	env = SimpleTrends()
+	env = SimpleTrends(simulations_length=356*5)
 	agent = MonteCarloAgent(state_dim=(3, 2), action_dim=3)
 	agent.train(env, episodes=5000, trajectories_per_update=5)
 	agent.save(path='saves/')
