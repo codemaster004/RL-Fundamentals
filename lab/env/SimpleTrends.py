@@ -13,7 +13,7 @@ class SimpleTrends(gym.Env):
 		# 0: Hold, 1: Buy, 2: Sell
 		self.action_space = spaces.Discrete(3)
 		# 0: trend-down, 1: trend-up, 2: chop
-		self.observation_space = spaces.Box(low=0, high=2, shape=(1,), dtype=np.int32)
+		self.observation_space = spaces.MultiDiscrete([3, 2], dtype=np.int32)
 		# Custom attributes
 		self.state = None
 		self.max_steps = 365
@@ -50,7 +50,7 @@ class SimpleTrends(gym.Env):
 
 		self.state = self._determine_state()
 		self.current_step = 0
-		return self.state, {}
+		return self.state, self._get_info()
 
 	def step(self, action):
 		current_price = self._prices[-1]
@@ -71,8 +71,10 @@ class SimpleTrends(gym.Env):
 		reward = self._calc_reward()
 		terminated = self.current_step >= self.max_steps
 		self.current_step += 1
+		
+		info = self._get_info()
 
-		return self.state, reward, terminated, False, {}
+		return self.state, reward, terminated, False, info
 
 	def render(self):
 		print(f"{self.funds=}, {self.bought_count=}, {self._prices[-1]=}")
@@ -80,15 +82,20 @@ class SimpleTrends(gym.Env):
 	def close(self):
 		pass
 
+	def _get_info(self):
+		return {"action_mask": np.array([True, self.funds > self._prices[-1], self.bought_count > 1])}
+	
 	def _determine_state(self):
+		trend = 2
 		if self._short_sma[-1] < self._long_sma[-1]:
-			return np.array([0])  # 0: trend-down
+			trend = 0  # 0: trend-down
 		elif self._short_sma[-1] >= self._long_sma[-1]:
-			return np.array([1])  # 1: trend-up
-		return None
+			trend = 1  # 1: trend-up
+		is_bought = 1 if self.bought_count > 0 else 0
+		return np.array([trend, is_bought])
 	
 	def _calc_reward(self):
-		return self.funds + self.bought_count * self._prices[-1]
+		return 0 if self.bought_count <= 0 else -1 if self._prices[-2] - self._prices[-1] <= 0 else 1
 
 	@staticmethod
 	def _gen_returns_t(num_days=5, mu=0.0005, sigma=0.01, df=5):

@@ -28,41 +28,51 @@ class MonteCarloAgent:
 		self.state_dim = state_dim
 		self.action_dim = action_dim
 
-		self.q_table = np.zeros((self.state_dim, self.action_dim))  # todo: this will work only when state_dim is an int
+		self.q_table = np.zeros((*self.state_dim, self.action_dim))  # todo: this will work only when state_dim is an int
 
-	def select_action(self, state, epsilon=0.1):
+	def select_action(self, state, mask, epsilon=0.1):
+		allowed_indices = np.where(mask)[0]
 		if np.random.random() < epsilon:
-			action = np.random.randint(self.action_dim)
+			action = np.random.choice(allowed_indices)
 		else:
-			action = np.argmax(self.q_table[state])
+			masked_q_values = self.q_table[(*state,)][mask]
+			action = allowed_indices[np.argmax(masked_q_values)]
 
 		return action
 
 	def update(self, states, actions, rewards, alpha):
 		for s, a, r in zip(states, actions, rewards):
-			self.q_table[s, a] += alpha * (r - self.q_table[s, a])
+			self.q_table[(*s, a)] += alpha * (r - self.q_table[(*s, a)])
 
-	def train(self, env, episodes=10_000, discounting=0.9, learning_rate=0.01):
+	def train(self, env, episodes=10_000, discounting=0.9, learning_rate=0.01, epsilon=0.3):
+		print('Starting Monte Carlo Training...')
+		buffer = MCBuffer()
 		for episode in range(episodes):
-			print("Episode: ", episode)
-			state, _ = env.reset()
-
-			buffer = MCBuffer()
-
-			done = False
-			while not done:
-				action = self.select_action(state)
-
-				next_state, reward, terminated, truncated, _ = env.step(action)
-				buffer.add(state, action, reward)
-				state = next_state
-
-				done = terminated or truncated
+			if (episode + 1) % 100 == 0:
+				print("Episode: ", episode + 1)
+			buffer.reset()
+			self._run_episode(env, buffer)
 
 			states, actions, rewards = buffer.get()
 			rewards = self._calc_cumsum_rewards(rewards, discounting)
 			self.update(states, actions, rewards, learning_rate)
+		print(f'{env.funds=}, {env.bought_count}, {env._prices[-1]}')
+	
+	def _run_episode(self, env, buffer):
+		state, info = env.reset()
+		mask = info['action_mask']
 
+		done = False
+		while not done:
+			action = self.select_action(state, mask, epsilon=0.3)
+
+			next_state, reward, terminated, truncated, info = env.step(action)
+			mask = info['action_mask']
+			buffer.add(state, action, reward)
+			state = next_state
+
+			done = terminated or truncated
+	
 	@staticmethod
 	def _calc_cumsum_rewards(rewards, lam):
 		# Calculating rewards from final reward with discounting lam
@@ -77,6 +87,6 @@ if __name__ == '__main__':
 	from lab.env.SimpleTrends import SimpleTrends
 
 	env = SimpleTrends()
-	agent = MonteCarloAgent(state_dim=3, action_dim=3)
+	agent = MonteCarloAgent(state_dim=(3, 2), action_dim=3)
 	agent.train(env)
 	print(agent.q_table)
